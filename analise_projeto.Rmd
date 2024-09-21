@@ -1,0 +1,155 @@
+---
+title: "Estudo de Impacto de Tratamentos no Peso das Plantas"
+output: pdf_document
+---
+
+# Problema de Negócio
+
+-   Uma empresa agrícola está enfrentando dificuldades em sua produão e deseja reavaliar a eficácia de seus tratamentos. Para realizar essa avaliação, a empresa reuniu dados de seus tratamentos, juntamente com um grupo de controle, usando um delineamento inteiramente casualizado (DIC). Agora, busca uma avaliação profissional para testar e analisar os resultados obtidos com esse experimento.
+
+-   Quais são os objetivos do projeto?
+
+    -   Avaliar a eficácia dos tratamentos.
+    -   Auxiliar na otimização do processo de produção.
+    -   Fornecer uma base sólida para a tomada de decisões futuras sobre a gestão dos tratamentos agrícolas.
+
+-   Metodologia:
+
+    -   Verificação dos dados.
+    -   Realização de uma ANOVA para determinar se existe diferença estatística significativa entre os tratamentos.
+    -   Execução do teste de dunnett para análise direta de cada tratamento em relação ao grupo de controle.
+
+Importando Bibliotecas
+
+```{r}
+  pacman::p_load("dplyr","DescTools","car","rstatix","ggplot2","qqplotr", "multcomp")
+```
+
+# Entendendo os Dados
+
+Dicionário dos Dados
+
+- weight: O peso da planta em gramas(g) após submissão ao tratamento.\
+- group: O grupo de tratamento ao qual a planta pertence.\
+- ctrl: Grupo de controle.\
+- trt1: Primeiro grupo de tratamento.\
+- trt2: Segundo grupo de tratamento.
+
+\newpage
+Importando e vizualizando as 6 primeiras linhas da base de dados
+```{r}
+data(PlantGrowth); head(PlantGrowth)
+```
+
+Os dados estão organizados em duas colunas, a primeira contendo nossa varíavel de interesse "weight", e a segunda composta pelos grupos do experimento.
+
+```{r}
+PlantGrowth %>% group_by(group) %>% get_summary_stats(weight)
+```
+
+De acordo com o sumário estatístico vemos que o experimento é balanceado, são 10 observações para cada um dos três grupos da base de dados. Além disso, nota-se certa semelhança nas medidas estatísticas de cada grupo, condição esta que vamos investigar mais a fundo ao longo da análise.
+
+Para a realização da ANOVA os seguintes pressupostos devem ser atendidos:
+
+- Homogêniedade das variâncias dos dados;
+- Normalidade dos erros;
+- Independência dos erros;
+- Aditividade dos fatores. 
+
+# Verificação dos Pressupostos 
+
+Para verificar a homogeniedade dos dados utilizarei o teste de levene em torno da mediana para ter um resultado mais exato considerando que nossa amostra é relativamente pequena.\
+
+Hipóteses
+
+H0 = As variâncias dos grupos são semelhantes.\
+H1 = Ao menos duas variâncias diferem entre si.
+
+```{r}
+leveneTest(weight ~ group, PlantGrowth, center = median)
+```
+
+O P-valor foi maior que 0,05 então aceita-se H0 ao nível de significância de 5%, portanto, há evidências de que nossos grupos possuem variâncias semlhantes.
+
+Para vizualizarmos isto gráficamente vamos fazer um boxplot.
+
+```{r}
+boxplot(weight ~ group,data = PlantGrowth,
+        ylab = "", xlab = "", main = "Boxplot do Peso por Grupo")
+```
+
+Conforme observado nos resultados do teste, as variâncias dos dados são semelhantes. No entanto, o boxplot revelou a presença de um outlier no tratamento 1. Vamos analisar mais detalhadamente as observações desse tratamento para decidir a melhor forma de lidar com essa anomalia. 
+
+```{r}
+PlantGrowth[PlantGrowth$group == 'trt1', ]
+```
+
+Analisando a base de dados, percebe-se que o valor não é tão discrepante e possui uma alta chance de ser legítimo. Naturalmente, algumas plantas podem apresentar um desenvolvimento menor ou maior que o comum. Portanto, ponderando as consequências de perder essa informação, optarei por manter o outlier na nossa análise.
+
+Agora vamos montar o modelo da ANOVA.
+
+```{r}
+modelo <- lm(weight ~ group, data = PlantGrowth)
+resultado_anova <- anova(modelo)
+```
+
+Antes de olhar para o resultado da ANOVA vamos usar o teste de Shapiro-Wilk para verificar o pressuposto da normalidade dos resíduos.
+
+Hipóteses
+
+H0 = Os resíduos seguem distribuição normal.\
+H1 = Os resíduos não seguem distribuição normal.
+
+```{r}
+shapiro.test(residuals(modelo))
+```
+
+O P-valor foi maior que 0,05 então aceita-se H0 ao nível de significância de 5%, portanto, há evidências de que os resíduos seguem uma distribuição normal.
+
+Para vizualizar melhor isto vamos fazer um plot dos quantis dos resíduos.
+
+```{r}
+PlantGrowth$residuos <- residuals(modelo)
+
+ggplot(PlantGrowth, aes(sample = residuos)) +
+  stat_qq_band() +
+  stat_qq_line() +
+  stat_qq_point() +
+  labs(title = "Gráfico Q-Q dos Resíduos", x = "Quantis Teóricos", y = "Quantis Amostrais") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+# Anova
+
+Agora que sabemos que os pressupostos da normalidade dos resíduos e homogêniedade das variâncias dos  grupos foram atendidos, e, supondo que os erros são independentes e os fatores aditivos, vamos vizualizar o resultado da nossa ANOVA
+
+Hipóteses
+
+H0 = As médias dos tratamentos são semelhantes.\
+H1 = Ao menos duas médias dos tratamentos diferem entre si.
+
+```{r}
+resultado_anova
+```
+
+O P-valor foi menor que 0.05 então rejeita-se H0 ao nível de 5% de significância, portanto, há evidências de que ao menos duas médias dos tratamentos diferem entre si.
+
+# Teste de Dunnett
+
+Após realizar a ANOVA e identificar a existência de diferenças significativas entre os grupos, aplicaremos o teste de Dunnett, ideal para compararação de múltiplos grupos de tratamento com um grupo de controle.
+
+Hipóteses
+
+H0: Não há diferença significativa entre as médias do grupo de controle e do tratamento.\
+H1: Há uma diferença significativa entre as médias do grupo de controle e do tratamento.
+
+```{r}
+dunnett <- glht(modelo, linfct = mcp(group = "Dunnett"))
+summary(dunnett)
+```
+
+O P-valor foi maior que 0,05 para os dois tratamentos então aceitamos H0 ao nível de 5% de significância, portanto, há evidências de que não existem diferenças entre as médias do grupo de controle e dos tratamentos.
+
+# Conclusão
+
+Após a aplicação da ANOVA e do Teste de Dunnett, observamos que nenhum dos tratamentos difere significativamente do grupo de controle. Isso implica que os dois tratamentos analisados não têm um efeito estatisticamente relevante na produção. Com base nisso, recomendamos a interrupção desses métodos na produção das plantas e a busca por técnicas potencialmente mais eficientes.
