@@ -1,4 +1,4 @@
-# Importando Bibliotecas --------------------------------------------------
+# Importando Bibliotecas -------------------------------------------------
 
 if(!require(pacman)) {
   install.packages("pacman")
@@ -6,7 +6,7 @@ if(!require(pacman)) {
   pacman::p_load("dplyr","DescTools","car","rstatix","ggplot2","qqplotr", "multcomp")
 }
 
-# Análise -----------------------------------------------------------------
+# Análise ----------------------------------------------------------------
 
 data(PlantGrowth)
 head(PlantGrowth)
