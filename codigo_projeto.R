@@ -1,8 +1,12 @@
+# Importando Bibliotecas --------------------------------------------------
+
 if(!require(pacman)) {
   install.packages("pacman")
 } else {
   pacman::p_load("dplyr","DescTools","car","rstatix","ggplot2","qqplotr", "multcomp")
 }
+
+# Análise -----------------------------------------------------------------
 
 data(PlantGrowth)
 head(PlantGrowth)
@@ -34,6 +38,3 @@ resultado_anova
 
 dunnett <- glht(modelo, linfct = mcp(group = "Dunnett"))
 summary(dunnett)
-
-plot(dunnett, main = "Intervalo de Confiança (95%) das Diferenças das Médias", 
-     xlab = "Diferença das Médias")
